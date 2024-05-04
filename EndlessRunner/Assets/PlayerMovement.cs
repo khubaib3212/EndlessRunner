@@ -13,12 +13,11 @@ public enum GoingInDirection
 public class PlayerMovement : MonoBehaviour
 {
     public static GoingInDirection currentDirection;
-    public float moveSpeed = 5f;
     public float forwardSpeed = 5f;
     public float jumpForce = 10f;
     public float swipeThreshold = 50f;
     public Animator playerAnimator;
-    [SerializeField] float rayLength = 1;
+    [SerializeField] float rayLength = 5;
     [SerializeField] LayerMask layerOfGround;
     [SerializeField] Transform camTransform;
     [SerializeField] float rotationSpeed;
@@ -41,9 +40,9 @@ public class PlayerMovement : MonoBehaviour
 
     void Update()
     {
-        transform.Translate(Vector3.forward * forwardSpeed * Time.deltaTime);
+        //transform.Translate(Vector3.forward * forwardSpeed * Time.deltaTime);
         HandleSwipeInput();
-        Debug.DrawRay(transform.position, transform.up * rayLength, Color.yellow);
+        
         if (n != currentDirection)
         {
             n = currentDirection;
@@ -92,13 +91,13 @@ public class PlayerMovement : MonoBehaviour
         if (swipe < 0)
         {
             if (currentLane == 0) return;
-            swipe = -2;
+            swipe = -1;
             currentLane--;
         }
         else
         {
             if (currentLane == 2) return;
-            swipe = 2;
+            swipe = 1.8f;
             currentLane++;
         }
         Vector3 temp = transform.localPosition;
@@ -148,15 +147,12 @@ public class PlayerMovement : MonoBehaviour
     }
     private void JumpOrDuck(float swipe)
     {
-        Debug.Log("Jumping or ducking...");
         if (swipe > 0)
         {
-            Debug.Log("Ducking");
             Duck();
         }
         else
         {
-            Debug.Log("Jumping");
             Jump();
         }
     }
@@ -168,9 +164,9 @@ public class PlayerMovement : MonoBehaviour
 
     private void Jump()
     {
-        Debug.Log("Checking if grounded...");
         if (IsGrounded())
         {
+            Debug.Log("eeeeee");
             playerAnimator.SetTrigger("Jump");
             rb.AddForce(new Vector3(0, jumpForce, 0), ForceMode.Impulse);
         }
@@ -178,7 +174,14 @@ public class PlayerMovement : MonoBehaviour
 
     private bool IsGrounded()
     {
-        return Physics.Raycast(transform.position, transform.up, rayLength, layerOfGround);
+        RaycastHit hit;
+        if (Physics.Raycast(transform.position,Vector3.down, out hit, rayLength, layerOfGround))
+        {
+            Debug.Log(hit.transform.name);
+        }
+        
+        //Debug.DrawRay(transform.position, transform.up * rayLength, Color.yellow);
+        return Physics.Raycast(transform.position, Vector3.down, rayLength, layerOfGround);
     }
 
     private void OnTriggerEnter(Collider other)
