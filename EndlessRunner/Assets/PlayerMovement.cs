@@ -12,11 +12,14 @@ public enum GoingInDirection
 }
 public class PlayerMovement : MonoBehaviour
 {
+    public delegate void PlayerDelegate();
+    public static event PlayerDelegate OnDiedEvent;
     public static GoingInDirection currentDirection;
     public float forwardSpeed = 5f;
-    public float jumpForce = 10f;
+    public float jumpVelocity = 10f;
     public float swipeThreshold = 50f;
     public Animator playerAnimator;
+    public bool isDead = false;
     [SerializeField] float rayLength = 5;
     [SerializeField] LayerMask layerOfGround;
     [SerializeField] Transform camTransform;
@@ -29,6 +32,9 @@ public class PlayerMovement : MonoBehaviour
     private bool isSwiping = false;
     private int currentLane = 1; // Initial lane index
     private bool canTurn = false;
+    private Vector3 turnPosition;
+    public bool freeRun = false;
+
     GoingInDirection n;
 
     void Start()
@@ -40,13 +46,15 @@ public class PlayerMovement : MonoBehaviour
 
     void Update()
     {
-        //transform.Translate(Vector3.forward * forwardSpeed * Time.deltaTime);
-        HandleSwipeInput();
-        
-        if (n != currentDirection)
+        if (!isDead && MainScript.instance.gameStarted)
         {
-            n = currentDirection;
-            Debug.Log(currentDirection);
+            transform.Translate(Vector3.forward * forwardSpeed * Time.deltaTime);
+            HandleSwipeInput();
+            if (n != currentDirection)
+            {
+                n = currentDirection;
+                Debug.Log(currentDirection);
+            }
         }
     }
 
@@ -69,13 +77,6 @@ public class PlayerMovement : MonoBehaviour
                 else
                 {
                     RotatePlayer(swipeDistance.normalized.x);
-                    //camTransform.GetComponent<CameraFollow>().turnTime = 0.2f;
-                    //camTransform.GetComponent<CameraFollow>().RotateAroundPlayer();
-                    //camTransform.RotateAround(transform.position, Vector3.up, 90);
-                    //transform.Rotate(0, 90, 0);
-                    //camTransform.eulerAngles = new Vector3(0, transform.eulerAngles.y, 0);
-                    //currentDirection = GoingInDirection.West;
-                    //transform.rotation = Quaternion.Euler(0, 90, 0);
                 }
             }
             else
@@ -84,20 +85,19 @@ public class PlayerMovement : MonoBehaviour
             }
         }
     }
-    
+
     private void SwitchLane(float swipe)
     {
-        Debug.Log("Swipe = " + swipe);
         if (swipe < 0)
         {
             if (currentLane == 0) return;
-            swipe = -1;
+            swipe = -1.1f;
             currentLane--;
         }
         else
         {
             if (currentLane == 2) return;
-            swipe = 1.8f;
+            swipe = 1.1f;
             currentLane++;
         }
         Vector3 temp = transform.localPosition;
@@ -126,10 +126,9 @@ public class PlayerMovement : MonoBehaviour
     {
         if (swipe < 0)
         {
-            float rotTo=transform.eulerAngles.y;
+            float rotTo = transform.eulerAngles.y;
             rotTo += 90;
             transform.DORotate(new Vector3(0, rotTo, 0), 0.2f);
-            //transform.Rotate(0, 90, 0);
             currentDirection = currentDirection - 1;
             if ((int)currentDirection < 0)
                 currentDirection = (GoingInDirection)3;
@@ -139,11 +138,20 @@ public class PlayerMovement : MonoBehaviour
             float rotTo = transform.eulerAngles.y;
             rotTo -= 90;
             transform.DORotate(new Vector3(0, rotTo, 0), 0.2f);
-            //transform.Rotate(0, -90, 0);
             currentDirection = currentDirection + 1;
             if ((int)currentDirection > 3)
                 currentDirection = (GoingInDirection)0;
         }
+        canTurn = false;
+        StartCoroutine(SetPosAfterTurn());
+    }
+    private IEnumerator SetPosAfterTurn() // set the position of player to the middle lane
+    {
+        transform.position = new Vector3(turnPosition.x, transform.position.y, turnPosition.z);
+        forwardSpeed = 0;
+        yield return new WaitForSeconds(0.1f);
+        forwardSpeed = 10;
+        currentLane = 1;
     }
     private void JumpOrDuck(float swipe)
     {
@@ -166,20 +174,21 @@ public class PlayerMovement : MonoBehaviour
     {
         if (IsGrounded())
         {
-            Debug.Log("eeeeee");
             playerAnimator.SetTrigger("Jump");
-            rb.AddForce(new Vector3(0, jumpForce, 0), ForceMode.Impulse);
+            //rb.AddForce(new Vector3(0, jumpForce, 0), ForceMode.Impulse);
+            rb.velocity = Vector2.up * jumpVelocity;
         }
     }
 
     private bool IsGrounded()
     {
+        Debug.Log("qqqq");
         RaycastHit hit;
-        if (Physics.Raycast(transform.position,Vector3.down, out hit, rayLength, layerOfGround))
+        if (Physics.Raycast(transform.position, Vector3.down, out hit, rayLength, layerOfGround))
         {
             Debug.Log(hit.transform.name);
         }
-        
+
         //Debug.DrawRay(transform.position, transform.up * rayLength, Color.yellow);
         return Physics.Raycast(transform.position, Vector3.down, rayLength, layerOfGround);
     }
@@ -189,14 +198,54 @@ public class PlayerMovement : MonoBehaviour
         if (other.CompareTag("Turn"))
         {
             canTurn = true;
+            other.gameObject.SetActive(false);
+            turnPosition = other.transform.position;
+            if (freeRun)
+            {
+                if (other.name == "turnRight")
+                {
+                    RotatePlayer(-1);
+                }
+                else
+                {
+                    RotatePlayer(1);
+                }
+            }
+        }
+        if (other.CompareTag("Obstacle") && !freeRun)
+        {
+            PlayerDied();
         }
     }
 
-    private void OnTriggerExit(Collider other)
+    private void PlayerDied()
     {
-        if (other.CompareTag("Turn"))
-        {
-            canTurn = false;
-        }
+        playerAnimator.SetTrigger("Died");
+        rb.velocity = -transform.forward * jumpVelocity;
+        playerAnimator.transform.DOLocalMoveY(-0.6f, 0.5f).SetDelay(1);
+        camTransform.LookAt(playerAnimator.transform.position);
+        //StartCoroutine(RotateAroundPlayer());
+        isDead = true;
+        OnDiedEvent?.Invoke();
     }
+    private IEnumerator RotateAroundPlayer()
+    {
+        //float rot = 0;
+        yield return new WaitForSeconds(2f);
+        //while (rot < 9)
+        //{
+        //    Debug.Log(rot);
+        //    rot += 1;
+        //    yield return new WaitForSeconds(0.1f);
+        //    camTransform.RotateAround(playerAnimator.transform.position, Vector3.right, rot);
+        //}
+
+    }
+    //private void OnTriggerExit(Collider other)
+    //{
+    //    if (other.CompareTag("Turn"))
+    //    {
+    //        canTurn = false;
+    //    }
+    //}
 }

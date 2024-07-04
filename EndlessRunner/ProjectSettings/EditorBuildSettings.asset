@@ -4,5 +4,8 @@
 EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
-  m_Scenes: []
+  m_Scenes:
+  - enabled: 1
+    path: Assets/MY ASSETS/jungle runner/Scenes/NEW PATCHES.unity
+    guid: b1b9567949d25a74bb3622bc7ee4e329
   m_configObjects: {}
