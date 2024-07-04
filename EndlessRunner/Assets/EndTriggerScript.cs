@@ -18,7 +18,7 @@ public class EndTriggerScript : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        Debug.Log("skjansj111");
+        Debug.Log("checkingJumpChange");
         if (other.gameObject.tag == "Player")
         {
             Debug.Log("name = " + track.name);
